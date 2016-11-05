@@ -2,11 +2,11 @@ module FileOperations where
 
 import Prelude
 import Control.MonadZero (guard)
-import Data.Array (uncons, length, filter, concatMap, (:), (..))
-import Data.Array.Partial (tail, head)
+import Data.Array (snoc, uncons, length, filter, concatMap, (:), (..))
+import Data.Array.Partial (last, init, tail, head)
 import Data.Foldable (foldl)
 import Data.Maybe (Maybe(Just, Nothing))
-import Data.Path (Path, ls)
+import Data.Path (size, isDirectory, Path, ls)
 import Partial.Unsafe (unsafePartial)
 
 allFiles :: Path -> Array Path
@@ -94,3 +94,17 @@ count p = count' 0
 
 reverse :: forall a. Array a -> Array a
 reverse = foldl (\acc n -> n : acc) []
+
+onlyFiles :: Path -> Array Path
+onlyFiles = filter (not isDirectory) <<< allFiles
+
+largestAndSmallest :: Path -> Array Path
+largestAndSmallest = foldl check [] <<< onlyFiles
+  where
+    check [] path = [path, path]
+    check acc path =
+      if size path > size (unsafePartial head acc)
+        then path : (unsafePartial tail acc)
+        else if size path < size (unsafePartial last acc)
+          then (unsafePartial init acc) `snoc` path
+          else acc

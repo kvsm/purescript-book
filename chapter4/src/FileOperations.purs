@@ -2,12 +2,10 @@ module FileOperations where
 
 import Prelude
 import Control.MonadZero (guard)
-import Data.Array (snoc, uncons, length, filter, concatMap, (:), (..))
-import Data.Array.Partial (last, init, tail, head)
+import Data.Array (head, uncons, length, filter, concatMap, (:), (..))
 import Data.Foldable (foldl)
-import Data.Maybe (Maybe(Just, Nothing))
-import Data.Path (size, isDirectory, Path, ls)
-import Partial.Unsafe (unsafePartial)
+import Data.Maybe (Maybe(Nothing, Just))
+import Data.Path (size, filename, root, isDirectory, Path, ls)
 
 allFiles :: Path -> Array Path
 allFiles root = root : concatMap allFiles (ls root)
@@ -23,11 +21,14 @@ isEven 1 = false
 isEven n = isEven (n - 2)
 
 countEvenIntsInArray :: Array Int -> Int
-countEvenIntsInArray [] = 0
-countEvenIntsInArray arr =
-  if isEven (unsafePartial head arr)
-    then 1 + countEvenIntsInArray (unsafePartial tail arr)
-    else countEvenIntsInArray (unsafePartial tail arr)
+countEvenIntsInArray arr = case uncons arr of
+  Nothing -> 0
+  Just { head: x, tail: xs } -> if isEven x
+    then 1 + countEvenIntsInArray xs
+    else countEvenIntsInArray xs
+
+countEven' :: Array Int -> Int
+countEven' = length <<< filter isEven
 
 squareArray :: Array Number -> Array Number
 squareArray = map (\n -> n * n)
@@ -83,7 +84,7 @@ allTrue = foldl (\a x -> a && x) true
 allTrue' :: Array Boolean -> Boolean
 allTrue' = foldl (==) false
 
-count :: forall a . ( a -> Boolean ) -> Array a -> Int
+count :: forall a. ( a -> Boolean ) -> Array a -> Int
 count p = count' 0
   where
     count' acc arr = case uncons arr of
@@ -98,13 +99,25 @@ reverse = foldl (\acc n -> n : acc) []
 onlyFiles :: Path -> Array Path
 onlyFiles = filter (not isDirectory) <<< allFiles
 
-largestAndSmallest :: Path -> Array Path
-largestAndSmallest = foldl check [] <<< onlyFiles
+largestFile :: Path -> Maybe Path
+largestFile = foldl largest Nothing <<< onlyFiles
   where
-    check [] path = [path, path]
-    check acc path =
-      if size path > size (unsafePartial head acc)
-        then path : (unsafePartial tail acc)
-        else if size path < size (unsafePartial last acc)
-          then (unsafePartial init acc) `snoc` path
-          else acc
+    largest Nothing path = Just path
+    largest (Just acc) path = if size acc > size path
+      then Just acc
+      else Just path
+
+smallestFile :: Path -> Maybe Path
+smallestFile = foldl smallest Nothing <<< onlyFiles
+  where
+    smallest Nothing path = Just path
+    smallest (Just acc) path = if size acc < size path
+      then Just acc
+      else Just path
+
+whereIs :: String -> Maybe Path
+whereIs file = head $ do
+  path <- allFiles' root
+  child <- ls path
+  guard $ filename child == file
+  pure path
